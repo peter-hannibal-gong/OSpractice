@@ -1,5 +1,8 @@
 struct stat;
 struct rtcdate;
+//added by gch
+int sigalarm(int ticks, void (*handler)());
+int sigreturn(void);
 
 // system calls
 int fork(void);

@@ -6,6 +6,30 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+//added by gch
+uint64 sys_sigalarm(void){
+  //added by gch
+  int interval;
+  uint64 handle;
+  if(argint(0, &interval) < 0)
+    return -1;
+    
+  if(argaddr(0, &handle) < 0)
+    return -1;
+  myproc()->alarm_interval = interval;
+  myproc()->alarm_handle = (void *)handle;
+  
+
+  return 0;
+}
+uint64 sys_sigreturn(void){
+  //added by gch
+  // 还原寄存器
+  memmove(myproc()->trapframe, myproc()->trapframe_copy, sizeof(struct trapframe));
+  myproc()->is_alarming = 0;
+
+  return 0;
+}
 
 uint64
 sys_exit(void)
@@ -70,6 +94,7 @@ sys_sleep(void)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
+  backtrace();//added by gch
   return 0;
 }
 

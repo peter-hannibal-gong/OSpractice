@@ -84,6 +84,13 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
+//added by gch
+  int alarm_interval;           // 报警间隔
+  void (*alarm_handle);           // 报警处理函数
+  int last_tick_time;           // 上次报警的滴答时刻
+  struct trapframe *trapframe_copy; // data page for trampoline.S copy
+  int is_alarming;      
+
   struct spinlock lock;
 
   // p->lock must be held when using these:
