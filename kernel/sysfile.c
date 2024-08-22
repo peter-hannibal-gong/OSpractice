@@ -539,7 +539,7 @@ sys_symlink(void)
   char target[MAXPATH], path[MAXPATH];
   struct inode *ip;
 
-  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+  if(argstr(0, path, MAXPATH) < 0 || argstr(1, target, MAXPATH) < 0)
     return -1;
     
   begin_op();
