@@ -1,5 +1,8 @@
 struct stat;
 struct rtcdate;
+//added by gch
+char *mmap(const char *, int, int, int, int, int);
+int munmap(const char *, int);
 
 // system calls
 int fork(void);
