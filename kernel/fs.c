@@ -374,7 +374,7 @@ iunlockput(struct inode *ip)
 
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
-static uint
+/*static uint
 bmap(struct inode *ip, uint bn)
 {
   uint addr, *a;
@@ -402,11 +402,70 @@ bmap(struct inode *ip, uint bn)
   }
 
   panic("bmap: out of range");
+}*/
+static uint
+bmap(struct inode *ip, uint bn)
+{
+  uint addr, *a, *b;
+  struct buf *bp;
+  struct buf *double_bp;
+  
+  //当前处于直接块
+  if(bn < NDIRECT){ //Is bn a direct block?
+    if((addr = ip->addrs[bn]) == 0)
+      ip->addrs[bn] = addr = balloc(ip->dev);
+    return addr;
+  }
+  //向下减去直接块的大小
+  bn -= NDIRECT;
+  
+  //当前处于单间接块，注意索引从0开始，所以NDIRECT指的是第一个单间接块
+  if(bn < NINDIRECT){ 
+    // Load indirect block, allocating if necessary.
+    if((addr = ip->addrs[NDIRECT]) == 0) //inode is not exited
+      ip->addrs[NDIRECT] = addr = balloc(ip->dev);
+    bp = bread(ip->dev, addr); //read this buf from disk
+    a = (uint*)bp->data; //first pointer of data
+    if((addr = a[bn]) == 0){ //need to allocate
+      a[bn] = addr = balloc(ip->dev);
+      log_write(bp);
+    }
+    brelse(bp);
+    return addr;
+   }
+   
+   bn -= NINDIRECT;
+   //当前处于双间接块，注意索引从0开始，所以NDIRECT + 1指的是第一个双间接块
+   if(bn < NINDIRECT * NINDIRECT){
+      if((addr = ip->addrs[NDIRECT + 1]) == 0) //双间接块是否存在，没有就分配
+        ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
+      double_bp = bread(ip->dev, addr); //read this buf from disk
+      a = (uint*)double_bp->data; //first pointer of data
+      if((addr = a[bn/NINDIRECT]) == 0){ //need to allocate
+        a[bn/NINDIRECT] = addr = balloc(ip->dev); //每隔256分配一个起始地址
+        log_write(double_bp);
+      }
+      brelse(double_bp);
+      //分配256*256块
+      bn = bn % NINDIRECT;
+      double_bp = bread(ip->dev, addr); //read this buf from disk
+      b = (uint*)double_bp->data; //first pointer of data
+      if((addr = b[bn]) == 0){ //need to allocate
+        b[bn] = addr = balloc(ip->dev); //将上面256个起始地址块之间填满256
+        log_write(double_bp);
+      }
+      brelse(double_bp);
+      return addr;
+  }
+ 
+  //bn is out of range MAXFILE
+  panic("bmap: out of range");
 }
+
 
 // Truncate inode (discard contents).
 // Caller must hold ip->lock.
-void
+/*void
 itrunc(struct inode *ip)
 {
   int i, j;
@@ -434,7 +493,59 @@ itrunc(struct inode *ip)
 
   ip->size = 0;
   iupdate(ip);
+}*/
+void
+itrunc(struct inode *ip)
+{
+  int i, j, k;
+  struct buf *bp, *double_bp;
+  uint *a, *b;
+
+  for(i = 0; i < NDIRECT; i++){
+    if(ip->addrs[i]){
+      bfree(ip->dev, ip->addrs[i]);
+      ip->addrs[i] = 0;
+    }
+  }
+
+  if(ip->addrs[NDIRECT]){
+    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+    a = (uint*)bp->data;
+    for(j = 0; j < NINDIRECT; j++){
+      if(a[j])
+        bfree(ip->dev, a[j]);
+    }
+    brelse(bp);
+    bfree(ip->dev, ip->addrs[NDIRECT]);
+    ip->addrs[NDIRECT] = 0;
+  }
+  
+  //仿照上面的写法，按起始地址块，循环删除即可
+  if(ip->addrs[NDIRECT + 1]){
+    bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
+    a = (uint*)bp->data;
+    for(j = 0; j < NINDIRECT; j++){
+      if(a[j]){
+        double_bp = bread(ip->dev, a[j]); //找到第j个双间接块
+        b = (uint*)double_bp->data;
+        for (k = 0; k < NINDIRECT; k++) { //循环删除第j个双间接块的数据
+          if (b[k])
+            bfree(ip->dev, b[k]);
+        }
+        brelse(double_bp);
+        bfree(ip->dev, a[j]);
+      }
+    }
+    brelse(bp);
+    bfree(ip->dev, ip->addrs[NDIRECT + 1]);
+    ip->addrs[NDIRECT + 1] = 0;
+  }
+  
+  ip->size = 0;
+  iupdate(ip);
 }
+
+
 
 // Copy stat information from inode.
 // Caller must hold ip->lock.

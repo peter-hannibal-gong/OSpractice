@@ -296,7 +296,7 @@ sys_open(void)
     return -1;
 
   begin_op();
-
+/*
   if(omode & O_CREATE){
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
@@ -315,6 +315,53 @@ sys_open(void)
       return -1;
     }
   }
+*/
+//changed by gch
+  if(omode & O_CREATE){
+    ip = create(path, T_FILE, 0, 0);
+    if(ip == 0){
+      end_op();
+      return -1;
+    }
+  } else {
+    if((ip = namei(path)) == 0){
+        end_op();
+        return -1;
+      }
+      ilock(ip);
+    if(ip->type == T_DIR && omode != O_RDONLY){
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
+    
+    int depth = 0;
+    while(ip->type == T_SYMLINK && !(omode & O_NOFOLLOW)){
+    	//读取当前inode里的路径，并且放到path中（下一级路径）
+      if(readi(ip, 0 , (uint64)path, 0, MAXPATH) < 0){ 
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      iunlockput(ip);
+      
+      //将当前ip指向下一级的路径
+      if((ip = namei(path)) == 0){ //point the next path
+        end_op();
+        return -1;
+      }
+      ilock(ip);
+      
+      //已经递归超过十次，直接退出
+      if(++depth > 10){
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+    }
+  }
+
+
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
@@ -484,3 +531,37 @@ sys_pipe(void)
   }
   return 0;
 }
+//added by gch
+
+uint64
+sys_symlink(void)
+{
+  char target[MAXPATH], path[MAXPATH];
+  struct inode *ip;
+
+  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+    
+  begin_op();
+  //this path already exits
+  if((ip = namei(path)) != 0){
+    end_op();
+    return -1;
+  }
+  
+  ip = create(path, T_SYMLINK, 0 , 0);
+  if(ip == 0){
+    end_op();
+    return -1;
+  }
+  
+  if((writei(ip, 0, (uint64)target, 0, MAXPATH)) < 0){
+    end_op();
+    return -1;
+  }
+  
+  iunlockput(ip); 
+  end_op();
+  return 0;
+}
+
