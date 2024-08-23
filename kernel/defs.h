@@ -8,6 +8,9 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+//added by gch
+void            freebytes(uint64 *dst);
+void            procnum(uint64 *dst);
 
 // bio.c
 void            binit(void);

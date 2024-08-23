@@ -26,6 +26,22 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+//added by gch
+void
+procnum(uint64 *dst)
+{
+  *dst = 0;
+  struct proc *p;
+  // 不需要锁进程 proc 结构，因为我们只需要读取进程列表，不需要写
+  for (p = proc; p < &proc[NPROC]; p++) {
+     // 不是 UNUSED 的进程位，就是已经分配的
+    if (p->state != UNUSED)
+      (*dst)++;
+  }
+}
+
+
+
 // Allocate a page for each process's kernel stack.
 // Map it high in memory, followed by an invalid
 // guard page.
@@ -302,6 +318,11 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+//added by gch
+  //将trace_mask拷贝到子进程
+  np->trace_mask = p->trace_mask;
+
 
   pid = np->pid;
 

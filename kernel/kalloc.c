@@ -29,6 +29,23 @@ kinit()
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
 }
+//added by gch
+void
+freebytes(uint64 *dst)
+{
+  *dst = 0;
+  struct run *p = kmem.freelist; // 用于遍历
+
+  acquire(&kmem.lock);
+  while (p) {
+    // 统计空闲页数，乘上页大小 PGSIZE 就是空闲的内存字节数
+    *dst += PGSIZE;
+    p = p->next;
+  }
+  release(&kmem.lock);
+}
+
+
 
 void
 freerange(void *pa_start, void *pa_end)
